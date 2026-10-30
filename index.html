@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilot buźki</title>
+<style>
+  /* Pilot buźki: jedna kolumna kart jak panel w aucie; akcent = bursztyn oczu z matrycy */
+  :root { --bg:#f5f4ef; --card:#ffffff; --text:#1d1c18; --muted:#66645c; --line:#e1ded4; --accent:#c8861a; --ok:#2e8540; --bad:#c0392b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#13130f; --card:#1e1d19; --text:#edebe3; --muted:#a19e93; --line:#34322c; --accent:#e0a33a; --ok:#4caf63; --bad:#e2685b; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#13130f; --card:#1e1d19; --text:#edebe3; --muted:#a19e93; --line:#34322c; --accent:#e0a33a; --ok:#4caf63; --bad:#e2685b; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:560px; margin:0 auto; padding-block:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  h1 { font-size:22px; margin:4px 0 12px; display:flex; align-items:center; gap:10px; }
+  h2 { font-size:15px; margin:0 0 10px; color:var(--muted); font-weight:600; text-transform:none; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  button { font:inherit; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--text); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.on { outline:2px solid var(--accent); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:8px 0 4px; }
+  input[type=range] { width:100%; }
+  input[type=number], input[type=text] { font:inherit; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); width:100%; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:15px; }
+  .kv span:nth-child(odd) { color:var(--muted); }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); display:inline-block; }
+  .dot.ok { background:var(--ok); }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px; font-size:12px; max-height:220px; overflow:auto; white-space:pre-wrap; margin:8px 0 0; }
+  .score { font-size:34px; font-weight:700; }
+  .hide { display:none; }
+  .warn { color:var(--bad); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="dot" id="dot"></span> Buźka – pilot</h1>
+
+  <div class="card">
+    <div class="row">
+      <button class="primary" id="btnConnect">Połącz z buźką</button>
+      <button id="btnSync" disabled>Ustaw czas i położenie</button>
+    </div>
+    <p class="warn hide" id="noBt">Bluetooth jest tu niedostępny: ta przeglądarka albo miejsce, w którym otwarto stronę, go blokuje. Otwórz stronę w Chrome na Androidzie pod własnym adresem https:// (np. GitHub Pages).</p>
+  </div>
+
+  <div class="card">
+    <h2>Stan</h2>
+    <div class="kv">
+      <span>Mina</span><span id="sEmo">–</span>
+      <span>Temperatura</span><span id="sTemp">–</span>
+      <span>GPS</span><span id="sGps">–</span>
+      <span>Zegar</span><span id="sClk">–</span>
+      <span>Kierunek jazdy</span><span id="sFwd">–</span>
+      <span>Jasność teraz</span><span id="sBri">–</span>
+      <span>Wersja</span><span id="sVer">–</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Trasa</h2>
+    <div class="row" style="justify-content:space-between">
+      <div><div class="score" id="tScore">–</div><div style="color:var(--muted);font-size:14px">płynność / 100</div></div>
+      <div class="kv" style="font-size:14px">
+        <span>Czas</span><span id="tMin">–</span>
+        <span>Dystans</span><span id="tKm">–</span>
+        <span>V max</span><span id="tVmax">–</span>
+        <span>Ostre</span><span id="tHarsh">–</span>
+        <span>Bez przerwy</span><span id="tNobrk">–</span>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button data-cmd="face summary">Pokaż podsumowanie</button>
+      <button data-cmd="face auto">Wróć do auto</button>
+      <button data-cmd="trip reset">Zeruj trasę</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Jasność</h2>
+    <label>W dzień: <b id="vBri">–</b>%</label>
+    <input type="range" min="1" max="100" id="rBri">
+    <label>W nocy: <b id="vBrin">–</b>% <span style="font-size:12px">(po zmroku, gdy znany jest czas i położenie)</span></label>
+    <input type="range" min="1" max="100" id="rBrin">
+  </div>
+
+  <div class="card">
+    <h2>Miny (podgląd)</h2>
+    <div class="grid">
+      <button data-cmd="face auto">auto</button>
+      <button data-cmd="demo">demo</button>
+      <button data-cmd="face neutral">spokój</button>
+      <button data-cmd="face turnl">w lewo</button>
+      <button data-cmd="face turnr">w prawo</button>
+      <button data-cmd="face accel">gaz</button>
+      <button data-cmd="face brake">hamuje</button>
+      <button data-cmd="face bumpy">wyboje</button>
+      <button data-cmd="face fast">za szybko</button>
+      <button data-cmd="face sleep">śpi</button>
+      <button data-cmd="face coffee">kawa</button>
+      <button data-cmd="face cold">zimno</button>
+      <button data-cmd="face hot">gorąco</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Ustawienia</h2>
+    <label>Obrót matrycy</label>
+    <div class="row">
+      <button data-cmd="rot 0">0°</button><button data-cmd="rot 1">90°</button>
+      <button data-cmd="rot 2">180°</button><button data-cmd="rot 3">270°</button>
+      <button id="btnMir">Lustro</button>
+      <button data-cmd="test">Test kolorów</button>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:6px">
+      <div><label>„Za szybko” powyżej (km/h)</label><input type="number" id="nFast" min="30" max="300"></div>
+      <div><label>Kawa po (min, 0 = wył.)</label><input type="number" id="nCof" min="0" max="600"></div>
+      <div><label>Poprawka temperatury (°C)</label><input type="number" id="nToff" step="0.1"></div>
+      <div><label>Temperatura ręcznie (puste = czujnik)</label><input type="number" id="nTemp" step="0.5"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnSave">Zapisz ustawienia</button>
+      <button data-cmd="axis reset">Zapomnij kierunek jazdy</button>
+      <button data-cmd="cal">Kalibruj pion</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Konsola</h2>
+    <div class="row"><input type="text" id="tCmd" placeholder="np. stat, help" style="flex:1"><button id="btnSend">Wyślij</button></div>
+    <pre id="log"></pre>
+  </div>
+</main>
+
+<script>
+const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const RX  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';   // zapis do płytki
+const TX  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';   // powiadomienia z płytki
+const $ = id => document.getElementById(id);
+let dev = null, rx = null, rxBuf = '', queue = Promise.resolve(), pollTimer = null, last = null;
+const enc = new TextEncoder(), dec = new TextDecoder();
+
+function log(s) {
+  const el = $('log');
+  el.textContent = (el.textContent + s).slice(-6000);
+  el.scrollTop = el.scrollHeight;
+}
+
+function send(cmd, quiet) {
+  if (!rx) return;
+  if (!quiet) log('> ' + cmd + '\n');
+  queue = queue.then(() => rx.writeValue(enc.encode(cmd + '\n'))).catch(e => log('! ' + e.message + '\n'));
+  return queue;
+}
+
+function onData(ev) {
+  rxBuf += dec.decode(ev.target.value);
+  let i;
+  while ((i = rxBuf.indexOf('\n')) >= 0) {
+    const line = rxBuf.slice(0, i).trim();
+    rxBuf = rxBuf.slice(i + 1);
+    if (line.startsWith('{')) { try { show(JSON.parse(line)); } catch (e) { log(line + '\n'); } }
+    else if (line) log(line + '\n');
+  }
+}
+
+const EMO = { neutral:'spokój', turnl:'skręt w lewo', turnr:'skręt w prawo', accel:'przyspiesza', brake:'hamuje',
+  bumpy:'wyboje', sleep:'śpi', cold:'zimno', hot:'gorąco', coffee:'kawa', summary:'podsumowanie', fast:'za szybko',
+  calib:'kalibracja', error:'błąd IMU' };
+
+function show(j) {
+  last = j;
+  $('sEmo').textContent = EMO[j.emo] || j.emo;
+  $('sTemp').textContent = j.t.toFixed(1) + ' °C' + (j.tman ? ' (ręcznie)' : '');
+  $('sGps').textContent = !j.gps.on ? 'brak modułu' : j.gps.fix ? `${j.gps.kmh} km/h, ${j.gps.sat} sat.` : `szuka sygnału (${j.gps.sat} sat.)`;
+  $('sClk').textContent = j.clk || 'nieustawiony';
+  $('sFwd').textContent = j.fwd ? 'znany' : 'jeszcze nieznany';
+  $('sBri').textContent = j.bnow + '%' + (j.loc ? ` (słońce ${j.sun.toFixed(0)}°)` : '');
+  $('sVer').textContent = j.v;
+  $('tScore').textContent = j.trip.min >= 1 ? j.trip.score : '–';
+  $('tMin').textContent = j.trip.min + ' min';
+  $('tKm').textContent = j.gps.on ? j.trip.km + ' km' : '– (bez GPS)';
+  $('tVmax').textContent = j.gps.on ? j.trip.vmax + ' km/h' : '–';
+  $('tHarsh').textContent = `ham. ${j.trip.hb}, gaz ${j.trip.ha}, zakr. ${j.trip.hc}`;
+  $('tNobrk').textContent = j.trip.nobrk + ' min';
+  if (document.activeElement !== $('rBri')) { $('rBri').value = j.bri; $('vBri').textContent = j.bri; }
+  if (document.activeElement !== $('rBrin')) { $('rBrin').value = j.brin; $('vBrin').textContent = j.brin; }
+  for (const [id, v] of [['nFast', j.fast], ['nCof', j.cof], ['nToff', j.toff]])
+    if (document.activeElement !== $(id) && !$(id).dataset.dirty) $(id).value = v;
+  $('btnMir').classList.toggle('on', !!j.mir);
+  document.querySelectorAll('[data-cmd^="rot "]').forEach(b => b.classList.toggle('on', b.dataset.cmd === 'rot ' + j.rot));
+}
+
+async function connect() {
+  try {
+    dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [NUS] }] });
+    dev.addEventListener('gattserverdisconnected', onDisconnect);
+    const srv = await dev.gatt.connect();
+    const svc = await srv.getPrimaryService(NUS);
+    rx = await svc.getCharacteristic(RX);
+    const tx = await svc.getCharacteristic(TX);
+    tx.addEventListener('characteristicvaluechanged', onData);
+    await tx.startNotifications();
+    $('dot').classList.add('ok');
+    $('btnConnect').textContent = 'Rozłącz';
+    $('btnSync').disabled = false;
+    log('połączono z ' + (dev.name || 'buźką') + '\n');
+    await send('json', true);
+    pollTimer = setInterval(() => send('json', true), 2000);
+  } catch (e) {
+    log('! ' + e.message + '\n');
+    if (/policy|SecurityError|not allowed|disallowed/i.test(e.name + ' ' + e.message)) $('noBt').classList.remove('hide');
+  }
+}
+
+function onDisconnect() {
+  clearInterval(pollTimer);
+  rx = null;
+  $('dot').classList.remove('ok');
+  $('btnConnect').textContent = 'Połącz z buźką';
+  $('btnSync').disabled = true;
+  log('rozłączono\n');
+}
+
+$('btnConnect').onclick = () => (dev && dev.gatt.connected) ? dev.gatt.disconnect() : connect();
+
+$('btnSync').onclick = () => {
+  send('time ' + Math.floor(Date.now() / 1000));
+  if (!navigator.geolocation) return log('! brak geolokalizacji\n');
+  navigator.geolocation.getCurrentPosition(
+    p => send(`loc ${p.coords.latitude.toFixed(4)} ${p.coords.longitude.toFixed(4)}`),
+    e => log('! położenie: ' + e.message + '\n'), { enableHighAccuracy: false, timeout: 15000 });
+};
+
+document.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => send(b.dataset.cmd));
+$('btnMir').onclick = () => send('mir ' + (last && last.mir ? 0 : 1));
+
+for (const [id, cmd, out] of [['rBri', 'bri', 'vBri'], ['rBrin', 'brin', 'vBrin']]) {
+  $(id).oninput = () => { $(out).textContent = $(id).value; };
+  $(id).onchange = () => send(cmd + ' ' + $(id).value);
+}
+['nFast', 'nCof', 'nToff', 'nTemp'].forEach(id => $(id).oninput = () => $(id).dataset.dirty = 1);
+$('btnSave').onclick = () => {
+  send('fast ' + $('nFast').value);
+  send('coffee ' + $('nCof').value);
+  send('toff ' + $('nToff').value);
+  send('temp ' + ($('nTemp').value === '' ? 'auto' : $('nTemp').value));
+  ['nFast', 'nCof', 'nToff', 'nTemp'].forEach(id => delete $(id).dataset.dirty);
+};
+$('btnSend').onclick = () => { if ($('tCmd').value.trim()) send($('tCmd').value.trim()); $('tCmd').value = ''; };
+$('tCmd').onkeydown = e => { if (e.key === 'Enter') $('btnSend').onclick(); };
+
+if (!navigator.bluetooth) { $('noBt').classList.remove('hide'); $('btnConnect').disabled = true; }
+</script>
+</body>
+</html>
